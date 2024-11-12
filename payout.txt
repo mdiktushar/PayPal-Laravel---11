@@ -1,0 +1,56 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Payment;
+use Exception;
+use Srmklive\PayPal\Services\PayPal;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+
+class PaypalController extends Controller
+{
+
+    public function index()
+    {
+        return view('paypal.index');
+    }
+
+    public function payout(Request $request)
+    {
+        try {
+            $provider = new PayPal;
+            $provider->setApiCredentials(config('paypal'));
+            $provider->getAccessToken();
+
+            $response = $provider->createBatchPayout([
+                'sender_batch_header' => [
+                    'email_subject' => 'You have a payout!',
+                    'email_message' => 'You have received a payment. Thanks for using our service!',
+                ],
+                'items' => [
+                    [
+                        'recipient_type' => 'EMAIL',
+                        'amount' => [
+                            'value' => $request->price,
+                            'currency' => 'USD'
+                        ],
+                        'note' => 'Thanks for your business',
+                        'sender_item_id' => uniqid(),
+                        'receiver' => $request->recipient_email,
+                    ],
+                ],
+            ]);
+            // dd($response);
+            if (isset($response['batch_header']['payout_batch_id'])) {
+                // Record the payout details in your database
+                return "Payout is successful, batch ID: " . $response['batch_header']['payout_batch_id'];
+            } else {
+                return "Payout failed: " . $response['name'];
+            }
+        } catch (Exception $e) {
+            Log::error('Payout: ' . $e->getMessage());
+        }
+
+    }
+}
